@@ -474,6 +474,26 @@ function ResultCard({ c, config, onEdit }){
 
   React.useEffect(()=>{ setDH(c.copy.headline); setDC(c.copy.cta); }, [c.copy.headline, c.copy.cta]);
 
+  // per-card MP4 export (video formats only)
+  const [dl, setDl] = React.useState(0); // 0 idle | 0<..<1 encoding | -1 error
+  async function downloadMp4(){
+    if(dl>0) return;
+    setDl(0.001);
+    try{
+      const blob = await window.encodeVideoMP4(c.fmt,
+        { template: config.template, cat: c.cat, img: config.image && config.image.url,
+          headline:c.copy.headline, description:c.copy.description, cta:c.copy.cta,
+          bg:config.bg, use:config.use, rtl:l.rtl },
+        l.id, (f)=>setDl(Math.max(0.001, f)));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = creativeFileName(c, "mp4");
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      setDl(0);
+    }catch(e){ console.error("mp4 export failed", e); setDl(-1); setTimeout(()=>setDl(0), 2600); }
+  }
+
   function apply(){
     onEdit(c.key, { headline:dH, cta:dC });
     if(l.id !== "en"){
@@ -514,6 +534,12 @@ function ResultCard({ c, config, onEdit }){
         {editable && !editing &&
           <button className="rcard__editbtn" onClick={()=>setEditing(true)}>
             {c.ev.status==="pass" ? "Edit copy" : "Edit manually"}
+          </button>}
+        {c.fmt.video && !editing &&
+          <button className="rcard__editbtn" disabled={dl>0}
+            style={{ marginTop:6, background: dl===-1 ? "#FFE4E1" : "#0B0F0D", color: dl===-1 ? "#B00020" : "#fff", borderColor:"transparent" }}
+            onClick={downloadMp4}>
+            {dl>0 ? `Encoding MP4… ${Math.round(dl*100)}%` : dl===-1 ? "Encode failed — retry" : "↓ Download MP4"}
           </button>}
         {editing &&
           <div className="rcard__editor">
