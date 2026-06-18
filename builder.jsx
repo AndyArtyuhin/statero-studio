@@ -306,8 +306,9 @@ function Builder({ config, set, onMake }){
           <p className="aside__label">Live preview {pvBusy && <span className="trans-busy"><span className="trans-busy__dot"></span>translating…</span>}</p>
           <div className="preview-stage">
             {totalFmts>0 ? (
-              <Creative fmt={pvFmt} maxW={356} maxH={300}
-                opts={{ template: config.template, cat: pvFmt.cat, img: config.image && config.image.url, headline: config.headline || "Buy gift cards worldwide. *For everyone.*", description: config.description, cta: config.cta || "Get started", discount: config.discount, bg: config.bg, use, lang: pvLangOk, rtl: pvRtl }} />
+              React.createElement(pvFmt.video ? window.VideoCreative : Creative, {
+                fmt:pvFmt, maxW:356, maxH:300,
+                opts:{ template: config.template, cat: pvFmt.cat, img: config.image && config.image.url, headline: config.headline || "Buy gift cards worldwide. *For everyone.*", description: config.description, cta: config.cta || "Get started", discount: config.discount, bg: config.bg, use, lang: pvLangOk, rtl: pvRtl } })
             ) : (
               <div className="preview-empty">{Ico.image}<p>Select at least one format to see a preview</p></div>
             )}

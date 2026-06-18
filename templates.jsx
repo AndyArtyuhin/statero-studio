@@ -77,7 +77,11 @@ function CrFitHead({ text, accent, baseFs, minFs, maxW, maxH, style }){
     let size = baseFs;
     el.style.fontSize = size + "px";
     let guard = 0;
-    while(guard++ < 80 && el.scrollHeight > maxH + 1 && size > minFs){
+    // shrink until the headline fits BOTH vertically (maxH) AND horizontally
+    // (maxW). Width matters because a long word in some languages (e.g. FR
+    // "CARTES-CADEAUX", DE compounds) can be wider than the text column and
+    // would otherwise spill onto the photo / out of the panel.
+    while(guard++ < 120 && (el.scrollHeight > maxH + 1 || el.scrollWidth > maxW + 1) && size > minFs){
       size -= Math.max(0.5, size * 0.05);
       el.style.fontSize = size + "px";
     }

@@ -391,29 +391,42 @@ async function exportZip(config, all, onProgress){
       // leaves stale sizes that capture before the re-fit commits ("поехавшие"
       // layouts). A clean mount per creative + a real timeout (rAF throttles
       // when the export tab isn't focused) makes every render settle first.
-      const slot = document.createElement("div");
-      mount.appendChild(slot);
-      const rRoot = ReactDOM.createRoot(slot);
-      await new Promise(res => {
-        rRoot.render(
-          <window.Creative fmt={c.fmt} maxW={c.fmt.w} maxH={c.fmt.h}
-            opts={{ template: config.template, cat: c.cat, img: config.image && config.image.url,
-              headline:c.copy.headline, description:c.copy.description, cta:c.copy.cta,
-              discount:config.discount, bg:config.bg, use:config.use, lang:c.lang.id, rtl:c.lang.rtl }} />
-        );
-        setTimeout(res, 300);   // let React commit + the auto-fit layout effect settle
-      });
-      await waitForImages(slot);
-      await new Promise(r => setTimeout(r, 60));
-      const node = slot.firstElementChild;
       let blob = null, ext = "png";
-      const limitKB = (window.CATEGORY_META[c.cat] || {}).limitKB || null;
-      try{ const res = await rasterizeNode(node, c.fmt.w, c.fmt.h, c.lang.id, fontCss, limitKB); blob = res.blob; ext = res.ext; }catch(_){ blob = null; }
+      if(c.fmt.video){
+        // animated MP4 creative — rendered & encoded at native resolution
+        try{
+          blob = await window.encodeVideoMP4(c.fmt,
+            { template: config.template, cat: c.cat, img: config.image && config.image.url,
+              headline:c.copy.headline, description:c.copy.description, cta:c.copy.cta,
+              bg:config.bg, use:config.use, rtl:c.lang.rtl },
+            c.lang.id,
+            (f)=> onProgress && onProgress((i + f)/all.length, i+1, all.length));
+          ext = "mp4";
+        }catch(e){ console.error("video encode failed", e); blob = null; }
+      } else {
+        const slot = document.createElement("div");
+        mount.appendChild(slot);
+        const rRoot = ReactDOM.createRoot(slot);
+        await new Promise(res => {
+          rRoot.render(
+            <window.Creative fmt={c.fmt} maxW={c.fmt.w} maxH={c.fmt.h}
+              opts={{ template: config.template, cat: c.cat, img: config.image && config.image.url,
+                headline:c.copy.headline, description:c.copy.description, cta:c.copy.cta,
+                discount:config.discount, bg:config.bg, use:config.use, lang:c.lang.id, rtl:c.lang.rtl }} />
+          );
+          setTimeout(res, 300);   // let React commit + the auto-fit layout effect settle
+        });
+        await waitForImages(slot);
+        await new Promise(r => setTimeout(r, 60));
+        const node = slot.firstElementChild;
+        const limitKB = (window.CATEGORY_META[c.cat] || {}).limitKB || null;
+        try{ const res = await rasterizeNode(node, c.fmt.w, c.fmt.h, c.lang.id, fontCss, limitKB); blob = res.blob; ext = res.ext; }catch(_){ blob = null; }
+        rRoot.unmount();
+        slot.remove();
+      }
       if(blob){
         root.folder(window.CATEGORY_META[c.cat].label).file(creativeFileName(c, ext), blob);
       }
-      rRoot.unmount();
-      slot.remove();
       onProgress && onProgress((i+1)/all.length, i+1, all.length);
     }
   } finally {
@@ -477,8 +490,9 @@ function ResultCard({ c, config, onEdit }){
           <span className="dot"></span>{statusWord(c.ev.status)}
         </span>
         {c.fmt.video && <span className="rcard__video">{window.Ico.video} {c.fmt.note}</span>}
-        <window.Creative fmt={c.fmt} maxW={196} maxH={150}
-          opts={{ template: config.template, cat: c.cat, img: config.image && config.image.url, headline:c.copy.headline, description:c.copy.description, cta:c.copy.cta, discount:config.discount, bg:config.bg, use:config.use, lang:l.id, rtl:l.rtl }} />
+        {React.createElement(c.fmt.video ? window.VideoCreative : window.Creative, {
+          fmt:c.fmt, maxW:196, maxH:150,
+          opts:{ template: config.template, cat: c.cat, img: config.image && config.image.url, headline:c.copy.headline, description:c.copy.description, cta:c.copy.cta, discount:config.discount, bg:config.bg, use:config.use, lang:l.id, rtl:l.rtl } })}
       </div>
       <div className="rcard__info">
         <div className="rcard__name">{c.fmt.name} <span className="rcard__lang">{l.flag} {l.id}</span>{c.edited && <span className="rcard__edited">edited</span>}</div>
