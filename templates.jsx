@@ -40,7 +40,20 @@ const BG_OPTIONS = [
   { id:"blue",   name:"Blue",        color:"#0062FF" },
   { id:"orange", name:"Orange",      color:"#FF5100" },
   { id:"yellow", name:"Yellow",      color:"#FFBB00" },
+  { id:"black",  name:"Black",       color:"#000000" },
 ];
+// per-background pattern tone (tone-on-tone). Each maps to a pre-tinted
+// symbol-pat-<hex>.png so the export rasteriser draws it as a normal bitmap.
+const PAT_BY_BG = {
+  "#08c55d": "01da6d",
+  "#009e51": "00c94f",
+  "#008042": "00a147",
+  "#e9e9e9": "d2d2d2",
+  "#0062ff": "2089ff",
+  "#ff5100": "ff7a00",
+  "#ffbb00": "ff9d00",
+  "#000000": "1c1c1c",
+};
 function crLum(hex){
   const h = (hex || "").replace("#","");
   if(h.length < 6) return 0.5;
@@ -51,17 +64,32 @@ function crTheme(bg){
   const color = bg || CR.green;
   const light = crLum(color) > 0.6;                 // grey + yellow are "light"
   const isYellow = color.toLowerCase() === CR.yellow.toLowerCase();
+  const isOrange = color.toLowerCase() === "#ff5100";
+  const isGrey   = color.toLowerCase() === "#e9e9e9";
+  const hx = (color || "").replace("#","");
+  const r = parseInt(hx.slice(0,2),16)||0, g = parseInt(hx.slice(2,4),16)||0, b = parseInt(hx.slice(4,6),16)||0;
+  const isGreen = g > r && g >= b;                  // brand green family
   return {
     bg: color,
     text: light ? CR.ink : CR.white,
     logoWhite: !light,
-    accent: light ? CR.green3 : CR.yellow,          // headline highlight
-    ctaBg: light ? CR.green : CR.yellow,
-    ctaFg: light ? CR.white : CR.ink,
+    // headline highlight: yellow reads on blue/orange but is muddy & low-contrast
+    // on the green field — use ink there so highlighted words stay readable.
+    accent: light ? CR.green3 : (isGreen ? CR.ink : CR.yellow),
+    // CTA: white button on the yellow field; brand green on other light fields; yellow on dark.
+    ctaBg: isYellow ? CR.white : (light ? CR.green : CR.yellow),
+    ctaFg: isYellow ? CR.ink   : (light ? CR.white : CR.ink),
     badgeBg: isYellow ? CR.green3 : CR.yellow,
     badgeFg: isYellow ? CR.white : CR.ink,
     badgeRing: light ? "rgba(11,15,13,.14)" : "rgba(255,255,255,.92)",
-    sym: light ? "grey" : "white",
+    // pattern: a fixed tone-on-tone colour per background (see PAT_BY_BG),
+    // drawn at full opacity. Unknown custom colours fall back to a faint
+    // black/white mark.
+    sym: light ? "black" : "white",
+    patSrc: PAT_BY_BG[color.toLowerCase()]
+      ? `assets/symbol-pat-${PAT_BY_BG[color.toLowerCase()]}.png`
+      : `assets/symbol-${light ? "black" : "white"}.png`,
+    patOpacity: PAT_BY_BG[color.toLowerCase()] ? 1 : (light ? 0.16 : 0.12),
   };
 }
 
@@ -105,6 +133,32 @@ function crGeo(fmt){
   else if(ratio <= 0.7)  mode = "tall";    // portrait: 9:16, skyscraper, half-page
   else                   mode = "square";  // 1:1 and near-square
   return { w, h, ratio, minSide, mode };
+}
+
+/* ---------- per-format pattern tuning ----------
+   Fine adjustments to the background pattern's SIZE and POSITION for
+   specific ad sizes, on top of each layout's proportional default.
+   k  = size multiplier (1 = layout default)
+   dx = extra horizontal shift as a fraction of width  (negative = left)
+   dy = extra vertical shift as a fraction of height   (positive = down) */
+function crPatAdj(g){
+  const key = g.w + "x" + g.h;
+  const M = {
+    /* social */
+    "1080x1080": { k:1.30 },           // larger
+    "1080x1920": { dy:0.52 },          // drop pattern down, below the text
+    "1200x627":  { dx:-0.07 },         // nudge left
+    /* google display */
+    "300x250":   { k:1.62 },           // larger
+    "336x280":   { k:1.62 },           // larger
+    "300x600":   { k:1.16 },           // a touch larger
+    "250x250":   { k:2.05 },           // much larger
+    /* micro banners */
+    "320x50":    { k:0.62 },           // smaller
+    "320x100":   { dx:-0.16 },         // nudge left
+  };
+  const a = M[key] || {};
+  return { k: a.k != null ? a.k : 1, dx: a.dx || 0, dy: a.dy || 0 };
 }
 
 /* ---------- slots: which copy fields fit THIS format ----------
@@ -196,7 +250,7 @@ function CrBadge({ text, g, bg, fg, ring, pos }){
 
 /* ---------- shared bits ---------- */
 function crLogo(white){ return white ? "assets/logo-white.png" : "assets/logo-black.png"; }
-function crSym(color){ // color: white | green | grey | black
+function crSym(color){ // color: white | green | grey | black | orange
   return `assets/symbol-${color}.png`;
 }
 
@@ -234,7 +288,8 @@ function CrMicro({ g, opts, theme }){
   // the mark reads as tall as the CTA pill — its PNG carries transparent
   // padding, so size the box a touch larger so the glyph matches the button.
   const logoH = showCta ? Math.min(btnH * 1.18, h - pad * 2) : crClamp(h * 0.5, 16, 56);
-  const patSize = Math.max(w, h) * 1.7;               // brand pattern, enlarged + cropped
+  const patSize = Math.max(w, h) * 1.7 * crPatAdj(g).k;  // brand pattern, enlarged + cropped
+  const _pa = crPatAdj(g);
   // Deterministic geometry (absolute, not flex) so the off-screen export
   // rasteriser lays the headline out identically to the on-page preview.
   const symW = logoH;                                  // mark is ~square
@@ -249,8 +304,8 @@ function CrMicro({ g, opts, theme }){
       {dark && <CrImg img={opts.img} className="cr-abs" style={{ position:"absolute", inset:0, width:"100%", height:"100%", __ph:10 }} />}
       {dark && <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg,rgba(0,0,0,.7),rgba(0,0,0,.25))" }}></div>}
       {!dark &&
-        <img src={crSym(logoWhite ? "white" : "grey")} alt="" style={{ position:"absolute", width:patSize, height:patSize,
-          right:-patSize*0.42, top:"50%", transform:"translateY(-50%)", opacity: logoWhite ? 0.10 : 0.16, pointerEvents:"none" }} />}
+        <img src={bt ? bt.patSrc : crSym(logoWhite ? "white" : "black")} alt="" style={{ position:"absolute", width:patSize, height:patSize,
+          right:-patSize*0.42 - _pa.dx*w, top:"50%", transform:"translateY(-50%)", opacity: bt ? bt.patOpacity : (logoWhite ? 0.10 : 0.18), pointerEvents:"none" }} />}
       <img src={crSym(symColor)} alt="statero" style={{ position:"absolute", left:pad, top:"50%", transform:"translateY(-50%)", height:logoH, zIndex:2 }} />
       {slots.headline &&
       <div style={{ position:"absolute", left:textLeft, width:textW, top:pad, height:h-pad*2, zIndex:2,
@@ -305,11 +360,12 @@ function CrT1Display({ g, opts }){
   const cta  = window.translate(opts.cta, opts.lang);
   const radius = crClamp(minSide * 0.035, 4, 28);                 // proportional, smaller on small formats
   const wordmark = crLogo(t.logoWhite);                           // FULL wordmark + text part
-  const symSize = Math.max(w, h) * 0.95;                          // brand pattern — enlarged + cropped
+  const pa = crPatAdj(g);
+  const symSize = Math.max(w, h) * 0.95 * pa.k;                    // brand pattern — enlarged + cropped
 
   const Pattern = (
-    <img src={crSym(t.sym)} alt="" style={{ position:"absolute", width:symSize, height:symSize,
-      opacity: t.sym==="grey" ? 0.16 : 0.12, left:-symSize*0.20, top:-symSize*0.24, pointerEvents:"none" }} />
+    <img src={t.patSrc} alt="" style={{ position:"absolute", width:symSize, height:symSize,
+      opacity: t.patOpacity, left:-symSize*0.20 + pa.dx*w, top:-symSize*0.24 + pa.dy*h, pointerEvents:"none" }} />
   );
 
   /* ---------- WIDE: text column left, photo card right ---------- */
@@ -417,9 +473,11 @@ function CrT1Social({ g, opts }){
   const radius = crClamp(minSide * 0.04, 12, 44);
   const symSize = Math.max(w, h) * 1.08;                          // brand element on the background
   const subColor = t.logoWhite ? "rgba(255,255,255,.92)" : "rgba(11,15,13,.66)";
+  const pa = crPatAdj(g);
+  const symSizeAdj = symSize * pa.k;
   const Pattern = (
-    <img src={crSym(t.sym)} alt="" style={{ position:"absolute", width:symSize, height:symSize,
-      opacity: t.sym==="grey" ? 0.16 : 0.12, left:-symSize*0.16, top:-symSize*0.20, pointerEvents:"none" }} />
+    <img src={t.patSrc} alt="" style={{ position:"absolute", width:symSizeAdj, height:symSizeAdj,
+      opacity: t.patOpacity, left:-symSizeAdj*0.16 + pa.dx*w, top:-symSizeAdj*0.20 + pa.dy*h, pointerEvents:"none" }} />
   );
 
   /* ---------- WIDE: text column + photo card ---------- */

@@ -70,7 +70,7 @@
     const W = fmt.w, H = fmt.h, ratio = W/H, min = Math.min(W,H);
     const mode = ratio >= 1.7 ? "wide" : (ratio <= 0.7 ? "tall" : "square");
     const vertical = mode !== "wide";
-    const t = window.crTheme ? window.crTheme(opts.bg) : { bg:CR.green, text:CR.white, accent:CR.yellow, ctaBg:CR.yellow, ctaFg:CR.ink, logoWhite:true, sym:"white" };
+    const t = window.crTheme ? window.crTheme(opts.bg) : { bg:CR.green, text:CR.white, accent:CR.yellow, ctaBg:CR.yellow, ctaFg:CR.ink, logoWhite:true, sym:"white", patSrc:"assets/symbol-pat-01da6d.png", patOpacity:1 };
     const lang = opts.lang || "en";
     const rtl = !!opts.rtl;
     const use = opts.use || {};
@@ -80,7 +80,7 @@
     const cta  = (use.cta !== false) ? ((window.translate ? window.translate(opts.cta, lang) : opts.cta) || "") : "";
 
     const logoSrc = t.logoWhite ? "assets/logo-white.png" : "assets/logo-black.png";
-    const symSrc  = "assets/symbol-" + (t.sym || "white") + ".png";
+    const symSrc  = t.patSrc || ("assets/symbol-" + (t.sym || "white") + ".png");
     const photoSrc = (opts.img) || "assets/t04-photo.jpg";
 
     const root = document.createElement("div");
@@ -90,14 +90,14 @@
       `font-family:${fontStack(lang)};`;
 
     /* brand pattern (two drifting cropped symbols) */
-    const symSize = Math.max(W,H) * (vertical ? 1.2 : 1.0);
+    /* brand pattern — a single cropped mark, matching the static creatives.
+       It only drifts very gently (slow parallax), never rotates, so nothing
+       sweeps across or overlaps a second copy. */
+    const symSize = Math.max(W,H) * (vertical ? 1.25 : 1.05);
     const p1 = document.createElement("img");
     p1.src = symSrc; p1.alt = "";
-    p1.style.cssText = `position:absolute;width:${symSize}px;height:${symSize}px;left:${-symSize*0.26}px;top:${-symSize*0.30}px;opacity:${t.sym==="grey"?0.14:0.08};pointer-events:none;transform-origin:center center;`;
-    const p2 = document.createElement("img");
-    p2.src = symSrc; p2.alt = "";
-    p2.style.cssText = `position:absolute;width:${symSize*0.85}px;height:${symSize*0.85}px;right:${-symSize*0.30}px;bottom:${-symSize*0.34}px;opacity:${t.sym==="grey"?0.12:0.07};pointer-events:none;transform-origin:center center;`;
-    root.appendChild(p1); root.appendChild(p2);
+    p1.style.cssText = `position:absolute;width:${symSize}px;height:${symSize}px;left:${-symSize*0.18}px;top:${-symSize*0.22}px;opacity:${t.patOpacity != null ? t.patOpacity : 0.1};pointer-events:none;will-change:transform;`;
+    root.appendChild(p1);
 
     /* photo (starts full-bleed, morphs into its final card) */
     const photo = document.createElement("div");
@@ -245,9 +245,9 @@
         ctaEl.style.opacity = clamp01(cp*2);
         ctaEl.style.transform = `scale(${lerp(0.9,1,easeOutBack(cp)).toFixed(4)})`;
       }
-      // pattern drift
-      p1.style.transform = `rotate(${(tt*7).toFixed(2)}deg)`;
-      p2.style.transform = `rotate(${(-tt*6).toFixed(2)}deg)`;
+      // pattern: slow, subtle parallax drift — no rotation, no second copy
+      const pd = tt / DUR;
+      p1.style.transform = `translate(${(pd*symSize*0.04).toFixed(2)}px, ${(pd*symSize*0.05).toFixed(2)}px)`;
       // loop fade
       root.style.opacity = (1 - seg(tt, TL.fadeOut[0], TL.fadeOut[1])).toFixed(3);
     }

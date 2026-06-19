@@ -253,8 +253,10 @@ async function rasterizeNode(node, w, h, langId, fontCss, limitKB){
   // Render at SS× the spec size with high-quality smoothing (max-quality source),
   // then downscale to the EXACT spec dimensions the ad platforms require — the
   // supersampling makes the photo + text crisp instead of pixelated, while the
-  // output stays at the format's required pixel size.
-  const SS = (Math.min(w, h) <= 350) ? 4 : 2;
+  // output stays at the format's required pixel size. SS scales with format size
+  // (small banners get 4×; mid formats 3×; the largest 2× to bound memory).
+  const maxd = Math.max(w, h);
+  const SS = maxd <= 600 ? 4 : maxd <= 1300 ? 3 : 2;
   const canvas = document.createElement("canvas");
   canvas.width = w * SS; canvas.height = h * SS;
   const ctx = canvas.getContext("2d");
@@ -353,10 +355,19 @@ async function rasterizeNode(node, w, h, langId, fontCss, limitKB){
   const enc = (type, q) => new Promise(r => out.toBlob(r, type, q));
   let blob = await enc("image/png"), ext = "png";
   if(limitKB && blob.size > limitKB * 1024){
-    for(let q = 0.95; q >= 0.5; q -= 0.05){
-      blob = await enc("image/jpeg", q); ext = "jpg";
-      if(blob.size <= limitKB * 1024) break;
+    // Find the HIGHEST JPEG quality that still fits the platform cap via binary
+    // search — far finer than a coarse 0.05 sweep, so capped formats keep as much
+    // detail as possible instead of dropping to a blocky low-quality step.
+    const cap = limitKB * 1024;
+    let lo = 0.4, hi = 0.96, best = null;
+    for(let i = 0; i < 9; i++){
+      const q = (lo + hi) / 2;
+      const b = await enc("image/jpeg", q);
+      if(b.size <= cap){ best = b; lo = q; }   // fits → push quality higher
+      else { hi = q; }                          // too big → ease quality down
     }
+    blob = best || await enc("image/jpeg", 0.4); // even min quality overflows → keep smallest
+    ext = "jpg";
   }
   return { blob, ext };
 }

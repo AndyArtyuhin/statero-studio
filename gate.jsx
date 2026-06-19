@@ -48,7 +48,7 @@ function Gate({ onUnlock }){
             autoComplete="off"
           />
           <p className="gate__err">{err}</p>
-          <button type="submit" className="btn btn-primary btn-block btn-lg">Enter</button>
+          <button type="submit" className="btn btn-primary btn-block btn-lg" style={{borderRadius:100}}>Enter</button>
         </form>
       </div>
     </div>

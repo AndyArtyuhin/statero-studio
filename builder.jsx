@@ -131,7 +131,7 @@ function Builder({ config, set, onMake }){
         <section className={"step" + (config.image ? " is-done":"")}>
           <div className="step__head">
             <span className="step__num">1</span>
-            <div className="step__titles"><h2 className="step__title">Image</h2><p className="step__sub">The source every format is cut from</p></div>
+            <div className="step__titles"><h2 className="step__title">Image</h2></div>
             {config.image && <span className="step__badge">Ready</span>}
           </div>
           {!config.image ? (
@@ -163,7 +163,7 @@ function Builder({ config, set, onMake }){
         <section className={"step" + (config.template!==null ? " is-done":"")}>
           <div className="step__head">
             <span className="step__num">2</span>
-            <div className="step__titles"><h2 className="step__title">Template</h2><p className="step__sub">Solid Split is ready to use — more layouts coming soon</p></div>
+            <div className="step__titles"><h2 className="step__title">Template</h2></div>
           </div>
           <div className="tpl-grid">
             {window.TEMPLATES.map(tpl => {
@@ -345,8 +345,8 @@ function Builder({ config, set, onMake }){
         </div>
 
         <div className="aside__foot">
-          <button className="btn btn-primary btn-block btn-lg" disabled={!ready} onClick={onMake}>
-            {Ico.spark} Make · generate {totalCreatives || ""}
+          <button className="btn btn-primary btn-block btn-lg" style={{borderRadius:100}} disabled={!ready} onClick={onMake}>
+            Make {totalCreatives || ""} Creatives
           </button>
           <p className="make-note">
             {!ready
